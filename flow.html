@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>System Architecture Flow</title>
+    <link rel="stylesheet" href="https://unpkg.com/reactflow@11/dist/style.css">
+    <style>
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        overflow: hidden;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f8fafc;
+        color: #172033;
+      }
+
+      .page {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        background:
+          linear-gradient(#e7ebf0 1px, transparent 1px),
+          linear-gradient(90deg, #e7ebf0 1px, transparent 1px),
+          linear-gradient(#f3f5f7 1px, transparent 1px),
+          linear-gradient(90deg, #f3f5f7 1px, transparent 1px);
+        background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+      }
+
+      .topbar {
+        position: absolute;
+        top: 18px;
+        left: 22px;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 1px solid #d7dde6;
+        border-radius: 8px;
+        background: rgb(255 255 255 / 88%);
+        box-shadow: 0 12px 36px rgb(15 23 42 / 10%);
+        backdrop-filter: blur(10px);
+      }
+
+      .topbar h1 {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #475569;
+        font-size: 12px;
+      }
+
+      .layer-box {
+        width: 100%;
+        height: 100%;
+        border: 1.5px dashed #b6c1cf;
+        border-radius: 8px;
+        background: rgb(255 255 255 / 30%);
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        box-sizing: border-box;
+      }
+
+      .layer-box span {
+        position: absolute;
+        top: -13px;
+        left: 14px;
+        padding: 4px 7px;
+        border-radius: 6px;
+        background: rgb(248 250 252 / 92%);
+      }
+
+      .pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #17a673;
+        box-shadow: 0 0 0 0 rgb(23 166 115 / 55%);
+        animation: pulse 1.8s ease-out infinite;
+      }
+
+      .architecture-flow {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+      }
+
+      .react-flow__node {
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .react-flow__node-layer {
+        z-index: 0 !important;
+      }
+
+      .react-flow__node-system,
+      .react-flow__node-mqtt {
+        z-index: 2 !important;
+      }
+
+      .node-card {
+        min-width: 126px;
+        border: 1px solid #cfd8e3;
+        border-radius: 8px;
+        background: rgb(255 255 255 / 94%);
+        box-shadow: 0 14px 34px rgb(15 23 42 / 12%);
+        overflow: hidden;
+      }
+
+      .node-card.device {
+        min-width: 106px;
+      }
+
+      .node-card.service {
+        min-width: 142px;
+      }
+
+      .node-title {
+        padding: 9px 11px 10px;
+        border-top: 4px solid var(--accent);
+        font-size: 13px;
+        font-weight: 760;
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      .node-icon {
+        height: 68px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        font-size: 36px;
+      }
+
+      .node-badge {
+        min-width: 46px;
+        padding: 8px 10px;
+        border: 2px solid currentColor;
+        border-radius: 8px;
+        color: var(--accent);
+        font-size: 14px;
+        font-weight: 900;
+        text-align: center;
+      }
+
+      .server-lines {
+        width: 44px;
+        height: 58px;
+        border: 4px solid #1f2937;
+        border-radius: 4px;
+        background:
+          linear-gradient(#1f2937 0 0) 10px 12px / 24px 4px no-repeat,
+          linear-gradient(#1f2937 0 0) 10px 23px / 24px 4px no-repeat,
+          linear-gradient(#1f2937 0 0) 10px 34px / 24px 4px no-repeat,
+          linear-gradient(#1f2937 0 0) 10px 45px / 24px 4px no-repeat,
+          #ffffff;
+      }
+
+      .mqtt {
+        min-width: 176px;
+        padding: 18px 18px 20px;
+        border: 2px solid #8a1a84;
+        border-radius: 8px;
+        background: #fff;
+        color: #7b1378;
+        box-shadow: 0 18px 42px rgb(123 19 120 / 18%);
+        font-size: 36px;
+        font-weight: 900;
+        letter-spacing: 0;
+        text-align: center;
+      }
+
+      .mqtt span {
+        display: block;
+        margin-top: 4px;
+        color: #475569;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .react-flow__edge.animated-flow path {
+        stroke-dasharray: 10 8;
+        animation: dash 0.8s linear infinite;
+      }
+
+      .react-flow__edge-path {
+        stroke-width: 2.5;
+      }
+
+      .react-flow__edge-textbg {
+        fill: rgb(255 255 255 / 85%);
+      }
+
+      .react-flow__edge-text {
+        font-size: 12px;
+        font-weight: 700;
+        fill: #243044;
+      }
+
+      .react-flow__controls {
+        border: 1px solid #d7dde6;
+        box-shadow: 0 12px 30px rgb(15 23 42 / 12%);
+      }
+
+      @keyframes dash {
+        to {
+          stroke-dashoffset: -18;
+        }
+      }
+
+      @keyframes pulse {
+        70% {
+          box-shadow: 0 0 0 9px rgb(23 166 115 / 0%);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgb(23 166 115 / 0%);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/reactflow@11/dist/umd/index.js"></script>
+    <script>
+      const {
+        Background,
+        Controls,
+        Handle,
+        MarkerType,
+        Position,
+      } = window.ReactFlow;
+      const ReactFlowComponent = window.ReactFlow.default || window.ReactFlow.ReactFlow;
+
+      const h = React.createElement;
+
+      function NodeShell({ data }) {
+        return h(
+          "div",
+          {
+            className: `node-card ${data.kind || ""}`,
+            style: { "--accent": data.color || "#2563eb" },
+          },
+          h(Handle, { id: "left-target", type: "target", position: Position.Left }),
+          h(Handle, { id: "right-source", type: "source", position: Position.Right }),
+          h(Handle, { id: "right-target", type: "target", position: Position.Right }),
+          h(Handle, { id: "left-source", type: "source", position: Position.Left }),
+          h(Handle, { id: "top-target", type: "target", position: Position.Top }),
+          h(Handle, { id: "bottom-source", type: "source", position: Position.Bottom }),
+          h("div", { className: "node-icon" }, data.server ? h("div", { className: "server-lines" }) : h("div", { className: "node-badge" }, data.badge)),
+          h("div", { className: "node-title" }, data.label)
+        );
+      }
+
+      function MqttNode() {
+        return h(
+          "div",
+          { className: "mqtt" },
+          h(Handle, { id: "left-target", type: "target", position: Position.Left }),
+          h(Handle, { id: "left-source", type: "source", position: Position.Left }),
+          h(Handle, { id: "right-source", type: "source", position: Position.Right }),
+          h(Handle, { id: "top-target", type: "target", position: Position.Top }),
+          h(Handle, { id: "bottom-target", type: "target", position: Position.Bottom }),
+          "MQTT",
+          h("span", null, "message broker")
+        );
+      }
+
+      function LayerNode({ data }) {
+        return h("div", { className: "layer-box" }, h("span", null, data.label));
+      }
+
+      const nodeTypes = {
+        layer: LayerNode,
+        system: NodeShell,
+        mqtt: MqttNode,
+      };
+
+      const nodes = [
+        { id: "operator-layer", type: "layer", position: { x: 35, y: 85 }, style: { width: 165, height: 830 }, data: { label: "operator" } },
+        { id: "interface-layer", type: "layer", position: { x: 225, y: 85 }, style: { width: 180, height: 830 }, data: { label: "interfaces" } },
+        { id: "core-layer", type: "layer", position: { x: 520, y: 85 }, style: { width: 215, height: 830 }, data: { label: "core" } },
+        { id: "storage-layer", type: "layer", position: { x: 790, y: 85 }, style: { width: 170, height: 830 }, data: { label: "storage" } },
+        { id: "adapter-layer", type: "layer", position: { x: 860, y: 335 }, style: { width: 215, height: 560 }, data: { label: "adapter" } },
+        { id: "device-layer", type: "layer", position: { x: 1170, y: 335 }, style: { width: 195, height: 560 }, data: { label: "devices" } },
+
+        { id: "user", type: "system", position: { x: 30, y: 520 }, data: { label: "User", badge: "USER", kind: "device", color: "#0ea5e9" }, parentNode: "operator-layer", extent: "parent" },
+        { id: "tablet", type: "system", position: { x: 45, y: 435 }, data: { label: "Tablet UI", badge: "UI", kind: "device", color: "#0ea5e9" }, parentNode: "interface-layer", extent: "parent" },
+
+        { id: "dashboard", type: "system", position: { x: 45, y: 55 }, data: { label: "Dashboard", badge: "DASH", kind: "device", color: "#2563eb" }, parentNode: "interface-layer", extent: "parent" },
+        { id: "garden", type: "system", position: { x: 45, y: 245 }, data: { label: "Garden Sensor", badge: "SENS", kind: "device", color: "#16a34a" }, parentNode: "interface-layer", extent: "parent" },
+
+        { id: "ha", type: "system", position: { x: 45, y: 120 }, data: { label: "Home Assistant", server: true, kind: "service", color: "#2563eb" }, parentNode: "core-layer", extent: "parent" },
+        { id: "mqtt", type: "mqtt", position: { x: 25, y: 435 }, data: {}, parentNode: "core-layer", extent: "parent" },
+        { id: "llm", type: "system", position: { x: 45, y: 650 }, data: { label: "LLM Orchestrator", server: true, kind: "service", color: "#7c3aed" }, parentNode: "core-layer", extent: "parent" },
+
+        { id: "sqlite", type: "system", position: { x: 22, y: 120 }, data: { label: "SQLite", badge: "DB", kind: "service", color: "#38bdf8" }, parentNode: "storage-layer", extent: "parent" },
+
+        { id: "vision", type: "system", position: { x: 35, y: 45 }, data: { label: "vision-tracker", server: true, kind: "service", color: "#f97316" }, parentNode: "adapter-layer", extent: "parent" },
+        { id: "spotmcp", type: "system", position: { x: 35, y: 235 }, data: { label: "mcp-spot", server: true, kind: "service", color: "#111827" }, parentNode: "adapter-layer", extent: "parent" },
+        { id: "armmcp", type: "system", position: { x: 35, y: 425 }, data: { label: "mcp-robot-arm", server: true, kind: "service", color: "#111827" }, parentNode: "adapter-layer", extent: "parent" },
+
+        { id: "cctv", type: "system", position: { x: 35, y: 45 }, data: { label: "CCTV", badge: "CAM", kind: "device", color: "#ef4444" }, parentNode: "device-layer", extent: "parent" },
+        { id: "spot", type: "system", position: { x: 35, y: 235 }, data: { label: "SPOT", badge: "BOT", kind: "device", color: "#111827" }, parentNode: "device-layer", extent: "parent" },
+        { id: "arm", type: "system", position: { x: 35, y: 425 }, data: { label: "Robot Arm", badge: "ARM", kind: "device", color: "#111827" }, parentNode: "device-layer", extent: "parent" },
+      ];
+
+      const edgeBase = {
+        animated: true,
+        className: "animated-flow",
+        markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+        style: { stroke: "#111827" },
+      };
+
+      const edges = [
+        { id: "dashboard-ha", source: "dashboard", sourceHandle: "right-source", target: "ha", targetHandle: "left-target", type: "smoothstep", label: "state", ...edgeBase },
+        { id: "garden-ha", source: "garden", sourceHandle: "right-source", target: "ha", targetHandle: "left-target", type: "smoothstep", label: "sensor data", ...edgeBase },
+        { id: "ha-sqlite", source: "ha", sourceHandle: "right-source", target: "sqlite", targetHandle: "left-target", type: "smoothstep", label: "history", ...edgeBase },
+        { id: "ha-mqtt", source: "ha", sourceHandle: "bottom-source", target: "mqtt", targetHandle: "top-target", type: "smoothstep", label: "events", ...edgeBase },
+        { id: "user-tablet", source: "user", sourceHandle: "right-source", target: "tablet", targetHandle: "left-target", type: "smoothstep", label: "views", ...edgeBase },
+        { id: "tablet-mqtt", source: "tablet", sourceHandle: "right-source", target: "mqtt", targetHandle: "left-target", type: "smoothstep", label: "subscribe", ...edgeBase, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 } },
+        { id: "llm-mqtt", source: "llm", sourceHandle: "right-source", target: "mqtt", targetHandle: "bottom-target", type: "smoothstep", label: "plans", ...edgeBase },
+        { id: "llm-vision", source: "llm", sourceHandle: "right-source", target: "vision", targetHandle: "left-target", type: "smoothstep", label: "orchestrates", ...edgeBase, style: { stroke: "#7c3aed" } },
+        { id: "llm-spotmcp", source: "llm", sourceHandle: "right-source", target: "spotmcp", targetHandle: "left-target", type: "smoothstep", label: "orchestrates", ...edgeBase, style: { stroke: "#7c3aed" } },
+        { id: "llm-armmcp", source: "llm", sourceHandle: "right-source", target: "armmcp", targetHandle: "left-target", type: "smoothstep", label: "orchestrates", ...edgeBase, style: { stroke: "#7c3aed" } },
+        { id: "mqtt-vision", source: "mqtt", sourceHandle: "right-source", target: "vision", targetHandle: "left-target", type: "smoothstep", label: "task", ...edgeBase },
+        { id: "mqtt-spotmcp", source: "mqtt", sourceHandle: "right-source", target: "spotmcp", targetHandle: "left-target", type: "smoothstep", label: "command", ...edgeBase },
+        { id: "mqtt-armmcp", source: "mqtt", sourceHandle: "right-source", target: "armmcp", targetHandle: "left-target", type: "smoothstep", label: "command", ...edgeBase },
+        { id: "cctv-vision", source: "cctv", sourceHandle: "left-source", target: "vision", targetHandle: "right-target", type: "smoothstep", label: "RTSP Stream", ...edgeBase, style: { stroke: "#ef4444" } },
+        { id: "spot-spotmcp", source: "spotmcp", sourceHandle: "right-source", target: "spot", targetHandle: "left-target", type: "smoothstep", label: "robot api", ...edgeBase },
+        { id: "arm-armmcp", source: "armmcp", sourceHandle: "right-source", target: "arm", targetHandle: "left-target", type: "smoothstep", label: "motion api", ...edgeBase },
+      ];
+
+      function App() {
+        return h(
+          "div",
+          { className: "page" },
+          h(
+            "div",
+            { className: "topbar" },
+            h("h1", null, "System Architecture"),
+            h("span", { className: "status" }, h("span", { className: "pulse-dot" }), "live data flow")
+          ),
+          h(
+            ReactFlowComponent,
+            {
+              className: "architecture-flow",
+              nodes,
+              edges,
+              nodeTypes,
+              fitView: true,
+              fitViewOptions: { padding: 0.12 },
+              minZoom: 0.45,
+              maxZoom: 1.6,
+              nodesDraggable: true,
+              nodesConnectable: false,
+              elementsSelectable: true,
+            },
+            h(Background, { color: "#cfd8e3", gap: 24, size: 1 }),
+            h(Controls, { showInteractive: false })
+          )
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+    </script>
+  </body>
+</html>
