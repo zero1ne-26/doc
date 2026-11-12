@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lite-oc 시스템 아키텍처</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/style.css">
+<style>
+  :root { color-scheme: light; --ink:#16202c; --muted:#5b6673; --line:#d6dbe2; --paper:#fff; --sunken:#f3f5f8; --blue:#2f6df6; --green:#16a34a; --amber:#d97706; --rose:#e11d48; --violet:#7c3aed; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; font-family: "Pretendard", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; color: var(--ink); background:#eef1f5; }
+  #app { display:grid; grid-template-rows: auto 1fr; height:100%; }
+  header { display:flex; gap:14px; align-items:center; padding:12px 18px; background:var(--paper); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  header h1 small { font-weight:500; color:var(--muted); margin-left:8px; font-size:13px; }
+  header .sp { flex:1; }
+  .btn { border:1px solid var(--line); background:var(--paper); border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; color:var(--ink); }
+  .btn.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  main { display:grid; grid-template-columns: 1fr 340px; min-height:0; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; } aside { max-height: 40vh; } }
+  .canvas { position:relative; min-height:0; }
+  aside { border-left:1px solid var(--line); background:var(--paper); padding:16px; overflow:auto; }
+  aside h2 { font-size:15px; margin:0 0 6px; }
+  aside p { font-size:13px; line-height:1.55; color:var(--ink); margin:0 0 10px; white-space:pre-line; }
+  aside .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:var(--sunken); margin:0 6px 8px 0; color:var(--muted); }
+  aside .tag.ok { background:#e8f7ee; color:var(--green); } aside .tag.opt { background:#fff4e5; color:var(--amber); } aside .tag.no { background:#fde8ec; color:var(--rose); }
+  aside ul { padding-left:18px; font-size:13px; line-height:1.6; margin:0 0 10px; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px; }
+  /* 노드 */
+  .n { border:1px solid var(--line); border-radius:10px; background:var(--paper); padding:10px 12px; font-size:12px; width:100%; height:100%; box-shadow:0 1px 2px rgba(0,0,0,.05); transition: opacity .2s; }
+  .n b { display:block; font-size:13px; margin-bottom:3px; }
+  .n span { color:var(--muted); line-height:1.45; display:block; }
+  .n.core { border-color:var(--blue); background:#f3f7ff; }
+  .n.data { border-color:var(--green); background:#f0fbf4; }
+  .n.client { border-color:var(--violet); background:#f6f2ff; }
+  .n.ext { border-color:var(--amber); background:#fff8ee; }
+  .n.deploy { border-color:#94a3b8; background:#f8fafc; }
+  .n.dim { opacity:.25; }
+  .react-flow__node { font-family: inherit; }
+  .react-flow__node-group { border-radius:14px; }
+  .grp { width:100%; height:100%; border-radius:14px; padding:10px 12px; font-size:12px; font-weight:700; color:var(--muted); }
+  .grp.box { background:rgba(47,109,246,.06); border:2px dashed rgba(47,109,246,.45); }
+  .grp.outer { background:rgba(217,119,6,.05); border:2px dashed rgba(217,119,6,.4); }
+  .grp.dep { background:rgba(100,116,139,.06); border:2px dashed rgba(100,116,139,.4); }
+  .react-flow__edge-path { stroke:#8a96a6; }
+  .react-flow__edge.live .react-flow__edge-path { stroke:var(--blue); }
+  .react-flow__edge.opt .react-flow__edge-path { stroke:var(--amber); stroke-dasharray:6 4; }
+  .react-flow__edge.build .react-flow__edge-path { stroke:#94a3b8; stroke-dasharray:2 4; }
+  .react-flow__edge-textbg { fill:#fff; } .react-flow__edge-text { font-size:10px; fill:var(--muted); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/umd/index.js"></script>
+<script>
+(() => {
+  const { useState, useMemo, useCallback, createElement: h } = React;
+  const RF = window.ReactFlow;
+  const { Background, Controls, MiniMap, Handle, Position, MarkerType } = RF;
+  const Flow = RF.default;
+
+  // ---- 노드 정의 (lite-oc v0.6.0 기준) ----
+  // offline: 'yes' 이 PC 만으로 됨 | 'opt' 있으면 좋고 없어도 동작 | 'no' 실행 때 필요 없음(빌드 때만)
+  const NODES = [
+    // 그룹
+    { id: 'g-pc', type: 'group', position: { x: 300, y: 80 }, style: { width: 760, height: 560 }, data: { label: '🖥 내 PC (또는 서버) 한 대 — lite-oc 바이너리 하나', cls: 'box' }, selectable: false },
+    { id: 'g-ext', type: 'group', position: { x: 1110, y: 80 }, style: { width: 300, height: 560 }, data: { label: '☁ 외부 (전부 선택)', cls: 'outer' }, selectable: false },
+    { id: 'g-dep', type: 'group', position: { x: 300, y: 680 }, style: { width: 1110, height: 130 }, data: { label: '📦 배포 형태 — 같은 코드, 같은 DB 파일', cls: 'dep' }, selectable: false },
+    // 클라이언트
+    { id: 'tablet', position: { x: 20, y: 140 }, data: { cls: 'client', title: '📱 태블릿 — 서비스 화면 /', sub: 'Next.js 정적 export. 세션 시작·대시보드·스토어·이벤트 팝업·로봇 패널·엔딩', offline: 'yes',
+      desc: '관람객이 보는 화면. 브라우저만 있으면 된다 — 서버가 내장한 정적 파일(HTML/JS)을 받아 돌고, 데이터는 전부 SSE(/api/stream) 한 줄기로 받는다.\n화면: 체험 시작(자기소개→이름 추출) · 장소별 태스크 · 스토어(APP Market → 요금제 선택창) · 이벤트 팝업(이미지 팝업 대체) · 하단 2칸 미디어(장소 기본/태스크 실행 중 10초) · SPOT·미래차 시뮬 · 엔딩', links: ['/ (서비스 화면)'] } },
+    { id: 'admin', position: { x: 20, y: 400 }, data: { cls: 'client', title: '🛠 운영자 — 어드민 /admin', sub: '대화·세션·사용자·AI 동반자·스토어·차량·태스크·이벤트·장치·로봇 콘솔·설정', offline: 'yes',
+      desc: '단일 HTML + 3개 JS(index/ops/ops2/ops3). 로그인 없음(로컬 전용). OC 어드민과 같은 기능 범위: AI 동반자, 장소와 태스크, 태스크(검증 잠금·선택지 로봇 명령), 이벤트, 로봇과 디바이스, 상품(요금제 3단계), 차량, 사용자(정보 프롬프트), 로봇 콘솔 시뮬, LG 가전, 설정(AI 모델 목록에서 택 1, 데이터 내보내기/가져오기).' } },
+    // 서버 내부
+    { id: 'gin', parentNode: 'g-pc', extent: 'parent', position: { x: 20, y: 40 }, style: { width: 330, height: 120 }, data: { cls: 'core', title: '🚀 Go 서버 (Gin) :8080', sub: 'REST /api/* · SSE /api/stream · 정적 서빙(/ , /admin) · /s3 내장 에셋 · /uploads', offline: 'yes',
+      desc: '단일 바이너리. cmd/server(헤드리스) 또는 cmd/app(트레이 아이콘 데스크톱 앱). 서비스 화면은 -tags embedweb 로 내장, 어드민은 go:embed.\n모든 변경은 live.Notify → SSE 스냅샷 재전송(session, dashboard, products, owned, event, spot-state, future-car, ending, emotion …).' } },
+    { id: 'agent', parentNode: 'g-pc', extent: 'parent', position: { x: 380, y: 40 }, style: { width: 350, height: 120 }, data: { cls: 'core', title: '🧠 에이전트 (CloudWeGo Eino)', sub: '대화 에이전트 + 툴 12종 · 여정 문구(journey) · 추천 워크플로(pick)', offline: 'opt',
+      desc: 'model ↔ tools 루프 그래프. 시스템 프롬프트 = 설정 system_prompt 또는 "대화에 사용" 으로 고른 AI 동반자 프롬프트([성격]+[도구 사용]).\n툴: get_weather, list_users, get_user_profile(사용자 정보 프롬프트 포함), list_vehicles, recommend_vehicle, select_profile_image, get_user_name, get_visitor_session, get_session_journey, list_recent_narratives, get_session_ending_materials.\n여정 문구(도착·태스크 시작/완료·이벤트·엔딩)는 같은 모델로, 등록된 사용자 정보가 참고 자료로 붙는다. LLM 이 없으면 규칙 문구로 폴백.' } },
+    { id: 'engine', parentNode: 'g-pc', extent: 'parent', position: { x: 20, y: 190 }, style: { width: 330, height: 130 }, data: { cls: 'core', title: '⚙️ 체험 엔진', sub: '세션 1개 활성 · 장소 동선(활성 장소) · 태스크 상태 · 이벤트 배정/발행 · 포인트·구매(요금제) · Vision 신호', offline: 'yes',
+      desc: '서버 코드가 규칙으로 진행한다: 세션 시작 → 장소마다 이벤트 1개 배정(2번째 일반·3번째 돌발) → 태스크 완료 때 발행 → 선택지 고르면 SPOT·반려로봇 명령이 명령 큐로, LG 가전은 HA 로.\n포인트: 초기 지급·태스크 완료 적립·스토어 구매(요금제 가격) 원자 처리.' } },
+    { id: 'sim', parentNode: 'g-pc', extent: 'parent', position: { x: 380, y: 190 }, style: { width: 350, height: 130 }, data: { cls: 'core', title: '🤖 로봇 콘솔 시뮬레이션', sub: '명령 큐(spot/companion/arm/hub) · SPOT 이동 타이머 · 미래차 구간 타이머 · Hub simulate 응답표', offline: 'yes',
+      desc: '실제 로봇·MQTT 없이 돌아간다. 명령은 그룹당 직렬 queued→accepted→started→completed, 로봇 ack 는 콘솔의 "응답 시뮬레이션" 에서 운영자가 넣는다. SPOT 지점 이동이 서비스 화면 마커를 움직이고, 미래차는 구간마다 차량 장소 태스크를 완료한다.' } },
+    { id: 'db', parentNode: 'g-pc', extent: 'parent', position: { x: 20, y: 350 }, style: { width: 330, height: 180 }, data: { cls: 'data', title: '🗄 SQLite — DATA_DIR/lite-oc.db', sub: '파일 하나. 시작 때 스키마 자동 보강 + OC 초기 데이터 1회 적용(seed_version)', offline: 'yes',
+      desc: 'modernc sqlite(cgo 없음), WAL. 테이블 ~45개: 체험 내용(personas, locations, tasks/options, events/options, devices, store_products(tiers)·categories, vehicles, users/assets), 세션 진행(visitor_sessions, session_*), 로봇 큐, 설정(configs, llm_settings).\n옮기기: 어드민 설정 → 내보내기 zip(DB+업로드) → 다른 PC 에서 가져오기. 키·토큰은 기본 제외.' } },
+    { id: 'assets', parentNode: 'g-pc', extent: 'parent', position: { x: 380, y: 350 }, style: { width: 350, height: 180 }, data: { cls: 'data', title: '🖼 내장 에셋 + 업로드', sub: '/s3/* = OC 이미지·영상 32개(바이너리 안, 24MB) · /uploads = 어드민이 올린 이미지·영상(mp4/webm)', offline: 'yes',
+      desc: 'OC 운영 DB 에서 뽑은 상품·이벤트·차량·동반자 이미지와 장소 영상을 go:embed 로 품고 OC 와 같은 /s3/… 주소로 서빙한다 → 인터넷 없이도 그대로 보인다.\n팝업 이미지·장소 기본 미디어·태스크 실행 중 미디어·상품 사진은 어드민에서 올리면 DATA_DIR/uploads 에 저장.' } },
+    // 외부
+    { id: 'ollama', parentNode: 'g-ext', extent: 'parent', position: { x: 15, y: 40 }, style: { width: 270, height: 95 }, data: { cls: 'ext', title: '🦙 Ollama (로컬 LLM)', sub: '같은 PC 에서 돌면 완전 오프라인. 기본값 qwen2.5:3b', offline: 'yes',
+      desc: '어드민 설정 → AI 모델 → Ollama. 모델 목록은 api/tags 에서 받아 하나 고른다. 인터넷·키 없이 AI 대화·여정 문구·추천이 돈다.' } },
+    { id: 'llm', parentNode: 'g-ext', extent: 'parent', position: { x: 15, y: 150 }, style: { width: 270, height: 110 }, data: { cls: 'ext', title: '☁ 외부 LLM (택 1)', sub: 'OpenAI 호환 · Claude (Anthropic REST) · 사내 커스텀 게이트웨이', offline: 'opt',
+      desc: '제공자 4개 중 하나만 사용. 재시작 없이 교체. 키는 DB 에 평문(로컬 전용). 모델 목록(OpenAI /models, Anthropic /v1/models)에서 골라 저장. 대화 내용이 그 서버로 나간다.' } },
+    { id: 'ha', parentNode: 'g-ext', extent: 'parent', position: { x: 15, y: 275 }, style: { width: 270, height: 95 }, data: { cls: 'ext', title: '🏠 Home Assistant (선택)', sub: 'LG 스타일러·공기청정기·냉장고 제어', offline: 'opt',
+      desc: '어드민 LG 가전에서 주소·토큰을 넣으면 기능 키 ↔ 엔티티를 잇고 바로 조작. 이벤트 선택지의 LG 전원 명령도 여기로. 없으면 그 부분만 건너뛴다.' } },
+    { id: 'pg', parentNode: 'g-ext', extent: 'parent', position: { x: 15, y: 385 }, style: { width: 270, height: 140 }, data: { cls: 'ext', title: '🐘 orchestration-server PostgreSQL', sub: '빌드 때 scripts/ocdump 가 초기 데이터(oc.json + 에셋)를 뽑아 바이너리에 넣는다', offline: 'no',
+      desc: '실행 때는 필요 없다. 다시 뽑을 때만 접속(OC_PG_PASSWORD, uuid리스트.xlsx → db/seed/ids.txt). 그래서 들고 가서 자기 PC 에서 켜도 OC 운영 데이터(동반자 5·장소 5·태스크 8·이벤트 5·디바이스 16·상품 10·차량 12)가 그대로 들어 있다.' } },
+    // 배포
+    { id: 'dmg', parentNode: 'g-dep', extent: 'parent', position: { x: 15, y: 40 }, style: { width: 250, height: 70 }, data: { cls: 'deploy', title: '🍎 Mac .dmg', sub: '트레이 앱(cmd/app) · 더블클릭 → 브라우저 자동', offline: 'yes', desc: 'scripts/package.sh mac. ad-hoc 서명(확인되지 않은 개발자 경고 1회). DB 는 ~/Library/Application Support/lite-oc.' } },
+    { id: 'win', parentNode: 'g-dep', extent: 'parent', position: { x: 285, y: 40 }, style: { width: 250, height: 70 }, data: { cls: 'deploy', title: '🪟 Windows .zip', sub: '같은 트레이 앱(크로스 컴파일)', offline: 'yes', desc: 'scripts/package.sh windows. 압축 풀고 lite-oc.exe. DB 는 %AppData%/lite-oc.' } },
+    { id: 'docker', parentNode: 'g-dep', extent: 'parent', position: { x: 555, y: 40 }, style: { width: 250, height: 70 }, data: { cls: 'deploy', title: '🐳 Docker (ghcr.io/zero1ne-26/lite-oc)', sub: 'arm64 + amd64 · -v lite-oc-data:/data', offline: 'yes', desc: 'docker compose up 또는 docker run -p 8080:8080 -v lite-oc-data:/data. 패키지가 private 이라 docker login 또는 save/load.' } },
+    { id: 'oci', parentNode: 'g-dep', extent: 'parent', position: { x: 825, y: 40 }, style: { width: 265, height: 70 }, data: { cls: 'deploy', title: '🌐 OCI 공개 서버', sub: 'http://146.56.38.67:8085 (어드민 /admin)', offline: 'opt', desc: '같은 Docker 이미지를 OCI VM 에서. 어드민이 공개 IP 에 열려 있으니 외부 노출 주의.' } },
+  ];
+  const EDGES = [
+    { id: 'e1', source: 'tablet', target: 'gin', label: 'SSE /api/stream + REST', className: 'live', animated: true },
+    { id: 'e2', source: 'admin', target: 'gin', label: 'REST /api/*', className: 'live' },
+    { id: 'e3', source: 'gin', target: 'engine', label: '요청' }, { id: 'e4', source: 'gin', target: 'agent', label: '대화·문구' },
+    { id: 'e5', source: 'engine', target: 'sim', label: '선택지 명령' }, { id: 'e6', source: 'engine', target: 'db', label: 'SQL' },
+    { id: 'e7', source: 'agent', target: 'db', label: '툴 조회·이력' }, { id: 'e8', source: 'sim', target: 'db', label: '큐·상태' },
+    { id: 'e9', source: 'gin', target: 'assets', label: '/s3 · /uploads' },
+    { id: 'e10', source: 'agent', target: 'ollama', label: 'HTTP (로컬)', className: 'opt' }, { id: 'e11', source: 'agent', target: 'llm', label: 'HTTPS (선택)', className: 'opt' },
+    { id: 'e12', source: 'engine', target: 'ha', label: 'HTTP (선택)', className: 'opt' },
+    { id: 'e13', source: 'pg', target: 'assets', label: '빌드 때만 (ocdump)', className: 'build' }, { id: 'e14', source: 'pg', target: 'db', label: 'oc.json 시드', className: 'build' },
+  ].map((e) => ({ ...e, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } }));
+
+  const OFF = { yes: ['ok', '이 PC 만으로 OK'], opt: ['opt', '선택 — 없어도 동작'], no: ['no', '실행 때 불필요(빌드 때만)'] };
+
+  function Box({ data, selected }) {
+    const dim = data.dim ? ' dim' : '';
+    return h('div', { className: 'n ' + data.cls + dim + (selected ? ' sel' : ''), style: selected ? { boxShadow: '0 0 0 2px #2f6df6' } : undefined },
+      h(Handle, { type: 'target', position: Position.Left, style: { opacity: 0 } }),
+      h(Handle, { type: 'target', position: Position.Top, id: 't', style: { opacity: 0 } }),
+      h('b', null, data.title), h('span', null, data.sub),
+      h(Handle, { type: 'source', position: Position.Right, style: { opacity: 0 } }),
+      h(Handle, { type: 'source', position: Position.Bottom, id: 'b', style: { opacity: 0 } }));
+  }
+  function Grp({ data }) { return h('div', { className: 'grp ' + data.cls }, data.label); }
+  const nodeTypes = { default: Box, group: Grp };
+
+  function App() {
+    const [offline, setOffline] = useState(false);
+    const [sel, setSel] = useState('gin');
+    const nodes = useMemo(() => NODES.map((n) => n.type === 'group' ? n : ({ ...n, type: 'default', data: { ...n.data, dim: offline && n.data.offline !== 'yes' } })), [offline]);
+    const edges = useMemo(() => EDGES.map((e) => offline && e.className !== 'live' && !['e3', 'e4', 'e5', 'e6', 'e7', 'e8', 'e9', 'e10'].includes(e.id) ? { ...e, style: { opacity: .2 } } : e), [offline]);
+    const cur = NODES.find((n) => n.id === sel);
+    const onNodeClick = useCallback((_, n) => { if (n.type !== 'group') setSel(n.id); }, []);
+    const off = cur ? OFF[cur.data.offline] : null;
+    return h('div', { id: 'app-root', style: { display: 'contents' } },
+      h('header', null,
+        h('h1', null, 'lite-oc 시스템 아키텍처', h('small', null, 'v0.6.0 · orchestration-server 의 라이트/오프라인 버전')),
+        h('div', { className: 'legend' },
+          h('span', null, h('i', { style: { background: '#2f6df6' } }), '서버 내부'), h('span', null, h('i', { style: { background: '#16a34a' } }), '데이터(파일)'),
+          h('span', null, h('i', { style: { background: '#7c3aed' } }), '브라우저'), h('span', null, h('i', { style: { background: '#d97706' } }), '외부(선택)'), h('span', null, h('i', { style: { background: '#94a3b8' } }), '배포')),
+        h('div', { className: 'sp' }),
+        h('button', { className: 'btn' + (offline ? ' on' : ''), onClick: () => setOffline((v) => !v) }, offline ? '✈ 오프라인 모드 보는 중 — 전체 보기' : '✈ 오프라인이면 뭐가 남나?')),
+      h('main', null,
+        h('div', { className: 'canvas' },
+          h(Flow, { nodes, edges, nodeTypes, fitView: true, fitViewOptions: { padding: 0.08 }, minZoom: 0.3, maxZoom: 1.6, onNodeClick, nodesDraggable: true, nodesConnectable: false, proOptions: { hideAttribution: true } },
+            h(Background, { gap: 24, color: '#dfe4ea' }), h(Controls, { showInteractive: false }), h(MiniMap, { pannable: true, zoomable: true, nodeColor: (n) => n.type === 'group' ? '#e5e9f0' : '#b9c7e6' }))),
+        h('aside', null,
+          cur ? [
+            h('h2', { key: 'h' }, cur.data.title),
+            off ? h('span', { key: 't', className: 'tag ' + off[0] }, off[1]) : null,
+            h('p', { key: 'p' }, cur.data.desc),
+            cur.data.links ? h('ul', { key: 'l' }, cur.data.links.map((l) => h('li', { key: l }, l))) : null,
+          ] : null,
+          h('hr', { style: { border: 0, borderTop: '1px solid var(--line)', margin: '12px 0' } }),
+          h('h2', null, '들고 가서 내 PC 에서 켜면?'),
+          h('ul', null,
+            h('li', null, '필요한 것: lite-oc 바이너리(dmg/zip/Docker) 하나. DB·초기 데이터·이미지가 전부 안에 있다.'),
+            h('li', null, 'AI 가 필요하면 Ollama 를 같은 PC 에 깔거나(오프라인), 어드민 설정에서 외부 API 키를 넣는다.'),
+            h('li', null, '다른 PC 의 데이터는 어드민 설정 → 내보내기 zip → 가져오기로 옮긴다.'),
+            h('li', null, '노드를 클릭하면 설명, 위 버튼으로 오프라인에 남는 부분만 본다.')))));
+  }
+  ReactDOM.createRoot(document.getElementById('app')).render(h(App));
+})();
+</script>
+</body>
+</html>
