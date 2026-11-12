@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OC → lite-oc 무엇이 달라졌나</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/style.css">
+<style>
+  :root { color-scheme: light; --ink:#16202c; --muted:#5b6673; --line:#d6dbe2; --paper:#fff; --sunken:#f3f5f8; --blue:#2f6df6; --green:#16a34a; --amber:#d97706; --rose:#e11d48; --violet:#7c3aed; --slate:#64748b; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; font-family: "Pretendard", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; color: var(--ink); background:#eef1f5; }
+  #app { display:grid; grid-template-rows: auto 1fr; height:100%; }
+  header { display:flex; gap:10px; align-items:center; padding:10px 16px; background:var(--paper); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  header h1 small { font-weight:500; color:var(--muted); margin-left:8px; font-size:13px; }
+  header a { font-size:12px; color:var(--blue); text-decoration:none; }
+  header .sp { flex:1; }
+  .btn { border:1px solid var(--line); background:var(--paper); border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; color:var(--ink); }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .btn.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .btn.primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .dots { display:flex; gap:6px; align-items:center; margin:0 6px; }
+  .dots i { width:9px; height:9px; border-radius:50%; background:#cfd6df; cursor:pointer; transition: background .3s, transform .3s; }
+  .dots i.done { background:#9fb3d9; } .dots i.cur { background:var(--blue); transform:scale(1.35); }
+  main { display:grid; grid-template-columns: 1fr 360px; min-height:0; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; } aside { max-height: 45vh; } }
+  .canvas { position:relative; min-height:0; }
+  aside { border-left:1px solid var(--line); background:var(--paper); padding:16px; overflow:auto; }
+  aside h2 { font-size:16px; margin:0 0 4px; }
+  aside .step { font-size:12px; color:var(--muted); margin-bottom:8px; }
+  aside p { font-size:13px; line-height:1.55; margin:0 0 12px; white-space:pre-line; }
+  aside h3 { font-size:12px; margin:12px 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+  aside h3.rm { color:var(--rose); } aside h3.mv { color:var(--blue); } aside h3.add { color:var(--green); }
+  aside ul { padding-left:18px; font-size:13px; line-height:1.6; margin:0; }
+  aside li b { font-weight:600; }
+  aside table { border-collapse:collapse; width:100%; font-size:12px; margin-top:6px; }
+  aside th, aside td { border-bottom:1px solid var(--line); padding:5px 4px; text-align:left; vertical-align:top; }
+  aside th { color:var(--muted); font-weight:600; }
+  aside td.oc { color:var(--rose); } aside td.lite { color:var(--green); font-weight:600; }
+  .fade { animation: fadein .5s ease; } @keyframes fadein { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:none; } }
+  /* 노드 — 위치·크기·투명도 전환 */
+  .react-flow__node { transition: transform .95s cubic-bezier(.45,0,.2,1), width .95s cubic-bezier(.45,0,.2,1), height .95s cubic-bezier(.45,0,.2,1), opacity .55s ease; font-family: inherit; }
+  .react-flow__node.gone, .react-flow__node.hidden { opacity:0; pointer-events:none; }
+  .react-flow__edge { transition: opacity .5s ease; }
+  .react-flow__edge.hide { opacity:0; }
+  .n { border:1px solid var(--line); border-radius:10px; background:var(--paper); padding:9px 11px; font-size:11.5px; width:100%; height:100%; box-shadow:0 1px 2px rgba(0,0,0,.05); overflow:hidden; transition: transform .6s, filter .6s, background .6s, border-color .6s; position:relative; }
+  .n b { display:block; font-size:12.5px; margin-bottom:2px; }
+  .n span { color:var(--muted); line-height:1.4; display:block; }
+  .n.core { border-color:var(--blue); background:#f3f7ff; }
+  .n.data { border-color:var(--green); background:#f0fbf4; }
+  .n.client { border-color:var(--violet); background:#f6f2ff; }
+  .n.ext { border-color:var(--amber); background:#fff8ee; }
+  .n.deploy { border-color:#94a3b8; background:#f8fafc; }
+  .n.infra { border-color:#94a3b8; background:#f1f5f9; }
+  .n.obs { border-color:#a78bfa; background:#faf5ff; }
+  .n.msg { border-color:#f59e0b; background:#fffbeb; }
+  .n.dev { border-color:#64748b; background:#f8fafc; border-style:dashed; }
+  .n.mod { border-color:#93c5fd; background:#fff; }
+  .n.gone { transform:scale(.55); filter:grayscale(1); }
+  .n.lite { animation: pop 1s ease .6s both; }
+  @keyframes pop { 0% { box-shadow:0 0 0 0 rgba(47,109,246,.0);} 35% { box-shadow:0 0 0 6px rgba(47,109,246,.35);} 100% { box-shadow:0 1px 2px rgba(0,0,0,.05);} }
+  .n .from { position:absolute; right:8px; bottom:6px; font-size:10px; color:var(--blue); background:#e6eefe; border-radius:999px; padding:1px 7px; animation: fadein .6s ease .9s both; }
+  .n .cut { position:absolute; right:8px; top:6px; font-size:12px; }
+  .grp { width:100%; height:100%; border-radius:14px; padding:10px 12px; font-size:12px; font-weight:700; color:var(--muted); transition: opacity .6s; }
+  .grp.oc { background:rgba(100,116,139,.05); border:2px dashed rgba(100,116,139,.35); }
+  .grp.ocsrv { background:rgba(47,109,246,.05); border:2px solid rgba(47,109,246,.3); }
+  .grp.box { background:rgba(47,109,246,.07); border:2px dashed rgba(47,109,246,.5); }
+  .grp.outer { background:rgba(217,119,6,.05); border:2px dashed rgba(217,119,6,.4); }
+  .grp.dep { background:rgba(100,116,139,.06); border:2px dashed rgba(100,116,139,.4); }
+  .grp .hint { display:block; font-weight:500; font-size:11px; margin-top:4px; }
+  .react-flow__edge-path { stroke:#8a96a6; }
+  .react-flow__edge.live .react-flow__edge-path { stroke:var(--blue); }
+  .react-flow__edge.opt .react-flow__edge-path { stroke:var(--amber); stroke-dasharray:6 4; }
+  .react-flow__edge.build .react-flow__edge-path { stroke:#94a3b8; stroke-dasharray:2 4; }
+  .react-flow__edge.oc .react-flow__edge-path { stroke:#a3adba; }
+  .react-flow__edge-textbg { fill:#fff; } .react-flow__edge-text { font-size:10px; fill:var(--muted); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/umd/index.js"></script>
+<script>
+(() => {
+  const { useState, useMemo, useCallback, useEffect, useRef, createElement: h } = React;
+  const RF = window.ReactFlow;
+  const { Background, Controls, MiniMap, Handle, Position, MarkerType, ReactFlowProvider, useReactFlow } = RF;
+  const Flow = RF.default;
+
+  // ---- 노드: oc = OC 구성에서의 자리/이름, lite = lite-oc 로 옮겨간 뒤의 자리/이름 (없으면 lite 에선 사라짐) ----
+  // grp: 영역 상자. 좌표는 전부 절대값 (부모 없음) → 이동 애니메이션이 자유롭다.
+  const W = 200, H = 80;
+  const N = {};
+  const node = (id, oc, lite, extra) => { N[id] = Object.assign({ id, oc, lite }, extra || {}); };
+  const grp = (id, cls, oc, lite) => { N[id] = { id, grp: true, cls, oc, lite }; };
+  // OC 영역 상자
+  grp('oc1', 'oc', { x: 0, y: 0, w: 1300, h: 130, title: '① 클라이언트' });
+  grp('oc2', 'oc', { x: 0, y: 150, w: 1300, h: 130, title: '② 진입 — OCI VM(공개 IP) · Tailscale · edge nginx' });
+  grp('oc3', 'oc', { x: 0, y: 300, w: 1300, h: 330, title: '③ 애플리케이션 — mac-studio · Docker Compose' });
+  grp('ocsrv', 'ocsrv', { x: 280, y: 335, w: 1000, h: 240, title: '🚀 orchestration-server — Go · Gin · :8080 · 모듈 10개' });
+  grp('oc4', 'oc', { x: 0, y: 650, w: 1300, h: 300, title: '④ 플랫폼 서비스 — 메시징 · 데이터 · 통합 · 관측' });
+  grp('oc5', 'oc', { x: 1330, y: 150, w: 300, h: 800, title: '⑤ 외부 SaaS' });
+  grp('oc6', 'oc', { x: 0, y: 970, w: 1630, h: 130, title: '⑥ 현장 장치 — 전시장' });
+  // lite 영역 상자
+  grp('g-pc', 'box', null, { x: 1750, y: 160, w: 760, h: 560, title: '🖥 내 PC(또는 서버) 한 대 — lite-oc 바이너리 하나', hint: 'OC 의 서버·화면·DB·큐·에셋이 전부 이 상자 안으로 들어온다' });
+  grp('g-ext', 'outer', null, { x: 2540, y: 160, w: 300, h: 560, title: '☁ 외부 (전부 선택)' });
+  grp('g-dep', 'dep', null, { x: 1750, y: 760, w: 1090, h: 120, title: '📦 배포 형태 — 같은 코드, 같은 DB 파일' });
+
+  // ① 클라이언트
+  node('tablet', { x: 40, y: 35, cls: 'client', title: '📱 방문객 태블릿', sub: '브라우저 → tablet-fe (edge :80 뒤)' }, { x: 1750, y: 40, w: 330, h: 90, cls: 'client', title: '📱 태블릿 — 서비스 화면 /', sub: '같은 Next.js 화면, 서버 바이너리에 내장. SSE 한 줄기로 데이터' });
+  node('operator', { x: 480, y: 35, cls: 'client', title: '🧑‍💻 운영자 / 개발자', sub: '백오피스 · Grafana · Jaeger · Dozzle' }, { x: 2120, y: 40, w: 380, h: 90, cls: 'client', title: '🛠 운영자 — 어드민 /admin', sub: '로그인 없음(로컬 전용). OC 어드민과 같은 기능 범위 + 로봇 콘솔 시뮬' });
+  node('carapp', { x: 920, y: 35, cls: 'client', title: '🚗 미래차 앱 car1 · car2', sub: 'mac-studio :8100 · :8102' }, null);
+  // ② 진입
+  node('proxy', { x: 40, y: 185, cls: 'infra', title: '🌐 OCI nginx-proxy + 로그인 게이트', sub: '8443 HTTPS · 8090 · auth_request → /api/admin/auth/me' }, null);
+  node('tailnet', { x: 480, y: 185, cls: 'infra', title: '🔗 Tailscale tailnet', sub: 'OCI → mac-studio :8090 · :80' }, null);
+  node('edge', { x: 920, y: 185, cls: 'infra', title: '🚪 orchestration-nginx (edge)', sub: ':8090 /admin /api /ws /s3 /grafana … · :80 tablet' }, null);
+  // ③ 애플리케이션
+  node('backoffice', { x: 40, y: 340, cls: 'mod', title: '🖥 orchestration-backoffice', sub: 'React 19 + Vite SPA · /admin /admin2' }, null);
+  node('tabletfe', { x: 40, y: 440, cls: 'mod', title: '📱 tablet-fe 컨테이너', sub: 'Next.js :3000 (로컬 빌드 이미지)' }, null);
+  node('cron', { x: 40, y: 540, cls: 'mod', title: '⏰ expire-sessions', sub: '배치 · SESSION_TTL_HOURS' }, null);
+  const mod = (id, i, title, sub, lite) => node(id, { x: 300 + (i % 5) * 195, y: 370 + Math.floor(i / 5) * 95, w: 180, h: 78, cls: 'mod', title, sub }, lite);
+  mod('rest', 0, '🧩 REST API', '/api · /docs · /dashboard', { x: 1770, y: 215, w: 340, h: 130, cls: 'core', title: '🚀 Go 서버 (Gin) :8080', sub: 'REST /api/* · SSE /api/stream · 정적 서빙(/, /admin) · /s3 내장 에셋 · /uploads. nginx 없이 직접 연다' });
+  mod('ws', 1, '🔌 WebSocket Hub', '/ws/mqtt · 브라우저 ↔ MQTT 중계', null);
+  mod('mqttx', 2, '📡 mqttx', '세션·태스크·이벤트·도착 자동화', { x: 1770, y: 360, w: 340, h: 130, cls: 'core', title: '⚙️ 체험 엔진', sub: '세션 · 장소 동선 · 태스크 상태 · 이벤트 배정/발행 · 포인트·구매(요금제) · Vision 신호. MQTT 대신 함수 호출 + live.Notify → SSE' });
+  mod('auth', 3, '🔐 adminauth', 'Naver/GitHub OAuth · IP 차단 · 감사 로그', null);
+  mod('llm', 4, '🧠 llm', 'OpenAI·Claude·Gemini·Ollama failover + Whisper', { x: 2130, y: 215, w: 360, h: 130, cls: 'core', title: '🧠 에이전트 (CloudWeGo Eino)', sub: '대화 에이전트 + 툴 12종 · 여정 문구 · 추천. 제공자 4개 중 택 1(재시작 없이 교체), LLM 없으면 규칙 문구 폴백' });
+  mod('dbm', 5, '🗃 db · migrate', 'sqlc · pgx · goose', null);
+  mod('storage', 6, '📦 storage', 'S3 업로드 (이미지 · 음성)', null);
+  mod('devq', 7, '🤖 devicequeue', 'SQS FIFO · SPOT·팔·REX·Hub 직렬화', { x: 2130, y: 360, w: 360, h: 130, cls: 'core', title: '🤖 로봇 콘솔 시뮬레이션', sub: '명령 큐(spot/companion/arm/hub) 인메모리 직렬 · SPOT 이동 타이머 · 미래차 구간 타이머 · Hub 응답표. 실제 로봇·MQTT 없이 돈다' });
+  mod('ham', 8, '🏠 ha · equipment', 'Home Assistant 클라이언트', null);
+  mod('tel', 9, '📈 telemetry · logger', 'OTel · otelsql · Discord', null);
+  // ④ 플랫폼
+  node('mosquitto', { x: 40, y: 690, cls: 'msg', title: '📨 Mosquitto MQTT', sub: '1883 · 9001 ws · ACL 계정' }, null);
+  node('postgres', { x: 260, y: 690, cls: 'data', title: '🐘 PostgreSQL 15', sub: '호스트 DB · goose 마이그레이션' }, { x: 1770, y: 505, w: 340, h: 130, cls: 'data', title: '🗄 SQLite — DATA_DIR/lite-oc.db', sub: '파일 하나(modernc, cgo 없음, WAL). 시작 때 스키마 보강 + OC 초기 데이터 1회 시드. 내보내기/가져오기 zip' });
+  node('s3', { x: 480, y: 690, cls: 'data', title: '🪣 ministack S3 · MinIO', sub: 'persona-images · voice-recordings' }, { x: 2130, y: 505, w: 360, h: 130, cls: 'data', title: '🖼 내장 에셋 + 업로드', sub: '/s3/* = OC 이미지·영상 32개를 go:embed(24MB) · /uploads = 어드민이 올린 파일. 인터넷 없이 그대로 보인다' });
+  node('sqs', { x: 700, y: 690, cls: 'msg', title: '📬 ministack SQS FIFO', sub: 'device-commands.fifo' }, null);
+  node('homeassistant', { x: 920, y: 690, cls: 'ext', title: '🏠 Home Assistant', sub: ':8123 · LG ThinQ 통합' }, { x: 2560, y: 440, w: 260, h: 100, cls: 'ext', title: '🏠 Home Assistant (선택)', sub: '주소·토큰 넣으면 LG 가전 제어. 없으면 그 부분만 건너뜀' });
+  node('cctv', { x: 1140, y: 690, w: 140, cls: 'ext', title: '📹 cctv-relay', sub: 'go2rtc · WebRTC' }, null);
+  node('jaeger', { x: 40, y: 800, cls: 'obs', title: '🔭 Jaeger v2', sub: 'OTLP 4317/4318' }, null);
+  node('prometheus', { x: 260, y: 800, cls: 'obs', title: '📊 Prometheus v3', sub: 'spanmetrics' }, null);
+  node('alloy', { x: 480, y: 800, cls: 'obs', title: '🪵 Grafana Alloy', sub: 'docker.sock 로그 수집' }, null);
+  node('loki', { x: 700, y: 800, cls: 'obs', title: '🗂 Loki 3.5', sub: '로그 30일' }, null);
+  node('grafana', { x: 920, y: 800, cls: 'obs', title: '📉 Grafana 11', sub: '세션 타임라인 대시보드' }, null);
+  node('dozzle', { x: 1140, y: 800, w: 140, cls: 'obs', title: '🐳 Dozzle', sub: '로그 tail' }, null);
+  // ⑤ 외부 SaaS
+  node('openai', { x: 1360, y: 200, w: 240, cls: 'ext', title: '☁ OpenAI · Claude · Gemini', sub: 'LLM API (failover 체인)' }, { x: 2560, y: 320, w: 260, h: 100, cls: 'ext', title: '☁ 외부 LLM (택 1, 선택)', sub: 'OpenAI 호환 · Claude · 사내 게이트웨이. 모델 목록에서 하나 고름' });
+  node('discord', { x: 1360, y: 320, w: 240, cls: 'ext', title: '💬 Discord 웹훅', sub: '에러·이벤트 알림' }, null);
+  node('oauth', { x: 1360, y: 440, w: 240, cls: 'ext', title: '🔑 Naver / GitHub OAuth', sub: '어드민 로그인' }, null);
+  // ⑥ 현장 장치
+  node('spot', { x: 40, y: 1005, w: 180, cls: 'dev', title: '🐕 SPOT', sub: 'MQTT 명령 · 위치' }, null);
+  node('arm', { x: 240, y: 1005, w: 180, cls: 'dev', title: '🦾 로봇팔 UF850', sub: 'MQTT' }, null);
+  node('rex', { x: 440, y: 1005, w: 180, cls: 'dev', title: '🐾 반려로봇 REX', sub: 'MQTT' }, null);
+  node('hub', { x: 640, y: 1005, w: 180, cls: 'dev', title: '🧰 Hub', sub: '장치 게이트웨이' }, null);
+  node('lg', { x: 840, y: 1005, w: 180, cls: 'dev', title: '🧺 LG 가전', sub: '스타일러 · 공기청정기 · 냉장고' }, null);
+  node('cctvcam', { x: 1040, y: 1005, w: 180, cls: 'dev', title: '📹 CCTV (RTSP)', sub: 'Vision 위치 추적' }, null);
+  node('cars', { x: 1240, y: 1005, w: 180, cls: 'dev', title: '🚗 미래차 · 태블릿 PC', sub: '전시장 LAN' }, null);
+  // lite 에서 새로 생긴 것
+  node('ollama', null, { x: 2560, y: 200, w: 260, h: 100, cls: 'ext', title: '🦙 Ollama (로컬 LLM)', sub: '같은 PC 에서 돌면 완전 오프라인. 기본 qwen2.5:3b' });
+  node('pgbuild', null, { x: 2560, y: 560, w: 260, h: 140, cls: 'ext', title: '🐘 OC PostgreSQL — 빌드 때만', sub: 'scripts/ocdump 가 oc.json + 에셋을 뽑아 바이너리에 넣는다. 실행 때는 접속 안 함' });
+  node('dmg', null, { x: 1770, y: 800, w: 240, h: 60, cls: 'deploy', title: '🍎 Mac .dmg', sub: '트레이 앱 · 더블클릭' });
+  node('win', null, { x: 2040, y: 800, w: 240, h: 60, cls: 'deploy', title: '🪟 Windows .zip', sub: '같은 트레이 앱' });
+  node('docker', null, { x: 2310, y: 800, w: 240, h: 60, cls: 'deploy', title: '🐳 Docker', sub: 'ghcr.io/zero1ne-26/lite-oc' });
+  node('oci', null, { x: 2580, y: 800, w: 240, h: 60, cls: 'deploy', title: '🌐 OCI 공개 서버', sub: '146.56.38.67:8085' });
+
+  // ---- 간선: oc 간선은 양끝이 OC 자리에 있을 때, lite 간선은 양끝이 lite 자리에 도착한 뒤 보인다 ----
+  const V = { sourceHandle: 'b', targetHandle: 't' }; // 위→아래
+  const EDGES = [
+    // OC
+    ['tablet', 'proxy', '', 'oc', V], ['operator', 'proxy', 'HTTPS 8443', 'oc', V], ['carapp', 'proxy', '', 'oc', V],
+    ['proxy', 'tailnet', '', 'oc', {}], ['tailnet', 'edge', '', 'oc', {}],
+    ['edge', 'tabletfe', ':80', 'oc', V], ['edge', 'backoffice', '/admin', 'oc', V], ['edge', 'rest', '/api', 'oc', V], ['edge', 'ws', '/ws', 'oc', V],
+    ['tabletfe', 'rest', '', 'oc', {}], ['backoffice', 'rest', '', 'oc', {}],
+    ['ws', 'mosquitto', '', 'oc', V], ['mqttx', 'mosquitto', 'pub/sub', 'oc', V], ['mosquitto', 'hub', 'MQTT', 'oc', V],
+    ['hub', 'spot', '', 'oc', {}], ['hub', 'arm', '', 'oc', {}], ['hub', 'rex', '', 'oc', {}],
+    ['devq', 'sqs', 'FIFO', 'oc', V], ['sqs', 'hub', '', 'oc', V],
+    ['dbm', 'postgres', 'pgx', 'oc', V], ['cron', 'postgres', '', 'oc', V], ['storage', 's3', '', 'oc', V],
+    ['llm', 'openai', 'HTTPS', 'oc', {}], ['auth', 'oauth', '', 'oc', {}], ['tel', 'discord', '', 'oc', {}],
+    ['ham', 'homeassistant', '', 'oc', V], ['homeassistant', 'lg', 'ThinQ', 'oc', V],
+    ['tel', 'jaeger', 'OTLP', 'oc', V], ['jaeger', 'prometheus', '', 'oc', {}], ['alloy', 'loki', '', 'oc', {}], ['loki', 'grafana', '', 'oc', {}], ['prometheus', 'grafana', '', 'oc', {}],
+    ['cctv', 'cctvcam', 'RTSP', 'oc', V],
+    // lite
+    ['tablet', 'rest', 'SSE + REST', 'live', V], ['operator', 'rest', 'REST', 'live', V],
+    ['rest', 'mqttx', '요청', 'lite', V], ['rest', 'llm', '대화·문구', 'lite', {}],
+    ['mqttx', 'devq', '선택지 명령', 'lite', {}], ['mqttx', 'postgres', 'SQL', 'lite', V], ['llm', 'postgres', '툴 조회', 'lite', { sourceHandle: 'b' }], ['devq', 's3', '', 'lite', V],
+    ['llm', 'ollama', 'HTTP (로컬)', 'opt', {}], ['llm', 'openai', 'HTTPS (선택)', 'opt', {}], ['mqttx', 'homeassistant', 'HTTP (선택)', 'opt', {}],
+    ['pgbuild', 'postgres', '빌드 때만 시드', 'build', {}],
+  ].map(([s, t, label, kind, hs], i) => ({ id: 'e' + i, source: s, target: t, label, kind, type: 'smoothstep', ...hs, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } }));
+
+  // ---- 단계: 누적. remove = 사라짐, move = lite 자리로 이동(이름도 바뀜), add = 새로 등장 ----
+  const STEPS = [
+    { title: '지금 전시장의 orchestration-server', remove: [], move: [], add: Object.keys(N).filter((k) => N[k].oc),
+      summary: '6계층. 공개 진입(OCI VM) → Tailscale → mac-studio 의 Docker Compose(서버·백오피스·tablet-fe) → 플랫폼(MQTT·PostgreSQL·S3·SQS·HA·관측 6개) → 외부 SaaS, 그리고 현장 장치. 컨테이너 20개 남짓, 포트 수십 개, 운영자는 OAuth 로그인.',
+      lists: { keep: ['전시 체험 로직은 서버 모듈 10개에 있다 — lite-oc 가 가져가는 건 이 부분'] } },
+    { title: '1. 진입 계층을 걷어낸다', remove: ['proxy', 'tailnet', 'edge'], move: [], add: ['g-pc'],
+      summary: 'lite-oc 는 "내 PC 한 대" 가 전제다. 공개 IP·HTTPS·로그인 게이트·tailnet·edge nginx 가 할 일이 없다. Gin 이 :8080 하나로 서비스 화면·어드민·API·에셋을 직접 연다.',
+      lists: { rm: ['OCI nginx-proxy + 로그인 게이트', 'Tailscale tailnet', 'orchestration-nginx (edge)'], add: ['빈 상자 "내 PC 한 대" — 이제부터 여기로 모은다'] } },
+    { title: '2. 관측·알림 스택을 뺀다', remove: ['jaeger', 'prometheus', 'alloy', 'loki', 'grafana', 'dozzle', 'tel', 'discord'], move: [], add: [],
+      summary: '전시 운영용 추적·메트릭·로그 파이프라인(6컨테이너)과 Discord 알림은 라이트 버전에서 뺐다. 대신 어드민의 개발자 도구 패널과 서버 로그로 본다.',
+      lists: { rm: ['Jaeger · Prometheus · Alloy · Loki · Grafana · Dozzle', 'telemetry 모듈(OTel · otelsql · Discord)'] } },
+    { title: '3. 화면 둘 + 서버 → 바이너리 하나', remove: ['backoffice', 'tabletfe', 'cron', 'ws', 'auth', 'oauth'], move: ['tablet', 'operator', 'rest'], add: [],
+      summary: '백오피스 SPA 와 tablet-fe 컨테이너를 따로 띄우지 않는다. 서비스 화면은 Next.js 정적 export 를 -tags embedweb 로, 어드민은 go:embed 로 바이너리 안에 넣었다. WebSocket Hub(MQTT 중계)는 SSE /api/stream 한 줄기로, 어드민 로그인은 로컬 전용이라 없앴다.',
+      lists: { rm: ['orchestration-backoffice 컨테이너 → 어드민 HTML 내장', 'tablet-fe 컨테이너 → 서비스 화면 내장', 'WebSocket Hub → SSE', 'adminauth · OAuth → 로그인 없음', 'expire-sessions 배치 → 세션 1개 활성, 어드민에서 종료'], mv: ['REST API → Go 서버(Gin) :8080 — 정적 서빙까지 겸함', '태블릿·운영자 브라우저는 그대로, 서버 주소만 바뀜'] } },
+    { title: '4. MQTT·SQS·로봇 → 프로세스 안의 시뮬레이션', remove: ['mosquitto', 'sqs', 'hub', 'spot', 'arm', 'rex', 'cctv', 'cctvcam', 'cars', 'carapp'], move: ['mqttx', 'devq'], add: [],
+      summary: '브로커와 큐가 하던 일(세션·태스크·이벤트 자동화, 장치 명령 직렬화)은 같은 프로세스의 함수 호출과 인메모리 큐로 옮겼다. 실제 SPOT·팔·REX·Hub·CCTV 는 어드민 "로봇 콘솔" 에서 응답을 시뮬레이션하고, 미래차 앱은 구간 타이머로 대신한다.',
+      lists: { rm: ['Mosquitto · ministack SQS', 'Hub · SPOT · 로봇팔 · REX · CCTV · 미래차 앱 (실물)'], mv: ['mqttx → 체험 엔진 (live.Notify → SSE)', 'devicequeue → 로봇 콘솔 시뮬레이션 (큐 상태 queued→accepted→started→completed 를 운영자가 넣음)'] } },
+    { title: '5. DB 와 파일 저장소 → 로컬 파일', remove: ['dbm', 'storage'], move: ['postgres', 's3'], add: ['g-ext', 'pgbuild'],
+      summary: 'PostgreSQL 은 SQLite 파일 하나(DATA_DIR/lite-oc.db)로, S3·MinIO 의 이미지·영상은 빌드 때 뽑아 바이너리에 내장(/s3/* 같은 주소)하고 어드민 업로드는 DATA_DIR/uploads 로. OC 운영 DB 는 빌드 때 ocdump 로 초기 데이터를 뽑을 때만 접속한다.',
+      lists: { rm: ['db · migrate (goose) → 시작 때 스키마 자동 보강', 'storage (S3 클라이언트)'], mv: ['PostgreSQL → SQLite 파일 (내보내기/가져오기 zip 으로 PC 간 이동)', 'S3 · MinIO → 내장 에셋 32개 + /uploads'], add: ['OC PostgreSQL 은 "빌드 때만" 자리로 — 실행엔 불필요'] } },
+    { title: '6. AI 는 택 1, 외부는 전부 선택', remove: ['ham', 'lg'], move: ['llm', 'openai', 'homeassistant'], add: ['ollama'],
+      summary: 'OC 의 llm 모듈(제공자 failover + Whisper)은 Eino 에이전트로 바꿨다. 제공자 4개(Ollama·OpenAI 호환·Claude·커스텀) 중 하나를 어드민에서 고르고, Ollama 를 같은 PC 에 두면 인터넷 없이 돈다. Home Assistant 는 있으면 LG 가전까지, 없으면 그 부분만 건너뛴다.',
+      lists: { rm: ['ha · equipment 모듈 → 체험 엔진이 직접 HA 호출', 'LG 가전 실물 → HA 뒤에서 선택'], mv: ['llm → 에이전트 (툴 12종 · 여정 문구 · 추천)', 'OpenAI·Claude·Gemini failover → 외부 LLM 택 1', 'Home Assistant → 선택 연동'], add: ['Ollama (로컬 LLM) — 완전 오프라인 경로'] } },
+    { title: '7. 결과: 들고 가서 자기 PC 에서 켠다', remove: ['oc1', 'oc2', 'oc3', 'ocsrv', 'oc4', 'oc5', 'oc6'], move: [], add: ['g-dep', 'dmg', 'win', 'docker', 'oci'],
+      summary: '같은 체험 로직, 같은 운영 데이터(동반자 5 · 장소 5 · 태스크 8 · 이벤트 5 · 디바이스 16 · 상품 10 · 차량 12)가 바이너리 하나에 들어 있다. dmg / zip / Docker 로 배포하고, 외부 연결은 전부 선택.',
+      final: true },
+  ];
+
+  // 누적 상태 계산: 'hidden' | 'oc' | 'gone' | 'lite'
+  function stateAt(step) {
+    const st = {};
+    Object.keys(N).forEach((k) => { st[k] = 'hidden'; });
+    for (let i = 0; i <= step; i++) {
+      const s = STEPS[i];
+      s.add.forEach((k) => { st[k] = N[k].oc ? 'oc' : 'lite'; });
+      s.move.forEach((k) => { st[k] = 'lite'; });
+      s.remove.forEach((k) => { st[k] = 'gone'; });
+    }
+    return st;
+  }
+
+  function Box({ data }) {
+    const d = data;
+    const cls = 'n ' + d.cls + (d.state === 'gone' ? ' gone' : '') + (d.state === 'lite' && d.moved ? ' lite' : '');
+    return h('div', { className: cls },
+      h(Handle, { type: 'target', position: Position.Left, style: { opacity: 0 } }),
+      h(Handle, { type: 'target', position: Position.Top, id: 't', style: { opacity: 0 } }),
+      d.state === 'lite' && d.moved ? h('span', { className: 'from' }, '← ' + d.from) : null,
+      d.state === 'gone' ? h('span', { className: 'cut' }, '✂') : null,
+      h('b', null, d.title), h('span', null, d.sub),
+      h(Handle, { type: 'source', position: Position.Right, style: { opacity: 0 } }),
+      h(Handle, { type: 'source', position: Position.Bottom, id: 'b', style: { opacity: 0 } }));
+  }
+  function Grp({ data }) { return h('div', { className: 'grp ' + data.cls }, data.title, data.hint ? h('span', { className: 'hint' }, data.hint) : null); }
+  const nodeTypes = { box: Box, grp: Grp };
+
+  function Inner() {
+    const [step, setStep] = useState(0);
+    const [settled, setSettled] = useState(true);
+    const [auto, setAuto] = useState(false);
+    const rf = useReactFlow();
+    const st = useMemo(() => stateAt(step), [step]);
+    const last = STEPS.length - 1;
+    const go = useCallback((n) => setStep((s) => Math.max(0, Math.min(last, typeof n === 'function' ? n(s) : n))), [last]);
+
+    // 단계 바뀌면: 간선 숨김 → 노드 이동 끝난 뒤 간선 표시 + 화면 맞춤
+    useEffect(() => {
+      setSettled(false);
+      const vis = Object.keys(st).filter((k) => st[k] === 'oc' || st[k] === 'lite').map((id) => ({ id }));
+      const fit = () => rf.fitView({ nodes: vis, padding: 0.1, duration: 900 });
+      const t1 = setTimeout(fit, 80);
+      const t0 = step === 0 ? setTimeout(fit, 500) : null;
+      const t2 = setTimeout(() => setSettled(true), 1000);
+      return () => { clearTimeout(t1); clearTimeout(t2); if (t0) clearTimeout(t0); };
+    }, [step, st, rf]);
+    useEffect(() => {
+      if (!auto) return;
+      if (step >= last) { setAuto(false); return; }
+      const t = setTimeout(() => go((s) => s + 1), 4200);
+      return () => clearTimeout(t);
+    }, [auto, step, last, go]);
+    useEffect(() => {
+      const onKey = (e) => { if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go((s) => s + 1); } if (e.key === 'ArrowLeft') go((s) => s - 1); if (e.key === 'Home') go(0); };
+      window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
+    }, [go]);
+
+    const nodes = useMemo(() => Object.values(N).map((n) => {
+      const s = st[n.id];
+      const useLite = s === 'lite' || (s === 'hidden' && !n.oc) || (s === 'gone' && !n.oc);
+      const p = (useLite ? n.lite : n.oc) || n.oc || n.lite;
+      const moved = !!(n.oc && n.lite);
+      const w = p.w || W, hh = p.h || H;
+      if (n.grp) return { id: n.id, type: 'grp', position: { x: p.x, y: p.y }, style: { width: p.w, height: p.h }, zIndex: -1, selectable: false, draggable: false, className: s === 'hidden' ? 'hidden' : s === 'gone' ? 'gone' : '', data: { cls: n.cls, title: p.title, hint: p.hint } };
+      return { id: n.id, type: 'box', position: { x: p.x, y: p.y }, style: { width: w, height: hh }, draggable: false, selectable: false, className: s === 'hidden' ? 'hidden' : s === 'gone' ? 'gone' : '',
+        data: { cls: p.cls, title: p.title, sub: p.sub, state: s, moved, from: moved ? n.oc.title.replace(/^\S+\s/, '') : '' } };
+    }), [st]);
+    const edges = useMemo(() => EDGES.map((e) => {
+      const a = st[e.source], b = st[e.target];
+      const show = e.kind === 'oc' ? (a === 'oc' && b === 'oc') : (a === 'lite' && b === 'lite' && settled);
+      return { ...e, className: (e.kind === 'oc' ? 'oc' : e.kind) + (show ? '' : ' hide'), animated: e.kind === 'live' && show };
+    }), [st, settled]);
+
+    const cur = STEPS[step];
+    const L = cur.lists || {};
+    const list = (cls, title, items) => items && items.length ? [h('h3', { key: 'h' + title, className: cls }, title), h('ul', { key: 'u' + title }, items.map((t) => h('li', { key: t }, t)))] : null;
+    return h('div', { style: { display: 'contents' } },
+      h('header', null,
+        h('h1', null, 'OC → lite-oc', h('small', null, '무엇을 빼고, 무엇을 합쳤나 — 단계별로')),
+        h('a', { href: 'https://zero1ne-26.github.io/doc/flow.html', target: '_blank' }, 'OC 전체 구성도 ↗'), h('span', { style: { color: '#cbd5e1' } }, '·'),
+        h('a', { href: './index.html' }, 'lite-oc 구성도 ↗'),
+        h('div', { className: 'sp' }),
+        h('button', { className: 'btn', onClick: () => { setAuto(false); go(0); }, disabled: step === 0 }, '⏮ 처음'),
+        h('button', { className: 'btn', onClick: () => { setAuto(false); go((s) => s - 1); }, disabled: step === 0 }, '◀ 이전'),
+        h('div', { className: 'dots' }, STEPS.map((_, i) => h('i', { key: i, className: i === step ? 'cur' : i < step ? 'done' : '', onClick: () => { setAuto(false); go(i); }, title: STEPS[i].title }))),
+        h('button', { className: 'btn primary', onClick: () => { setAuto(false); go((s) => s + 1); }, disabled: step === last }, '다음 ▶'),
+        h('button', { className: 'btn' + (auto ? ' on' : ''), onClick: () => { if (step >= last) go(0); setAuto((v) => !v); } }, auto ? '⏸ 자동 재생 중' : '▶ 자동 재생')),
+      h('main', null,
+        h('div', { className: 'canvas' },
+          h(Flow, { nodes, edges, nodeTypes, fitView: true, fitViewOptions: { padding: 0.1 }, minZoom: 0.15, maxZoom: 1.6, nodesDraggable: false, nodesConnectable: false, elementsSelectable: false, proOptions: { hideAttribution: true } },
+            h(Background, { gap: 24, color: '#dfe4ea' }), h(Controls, { showInteractive: false }), h(MiniMap, { pannable: true, zoomable: true, nodeColor: (n) => n.type === 'grp' ? '#e5e9f0' : n.className ? '#f1f1f1' : '#b9c7e6' }))),
+        h('aside', { key: step, className: 'fade' },
+          h('div', { className: 'step' }, (step + 1) + ' / ' + STEPS.length + ' · ←/→ 키 또는 버튼'),
+          h('h2', null, cur.title),
+          h('p', null, cur.summary),
+          list('rm', '✂ 뺀 것', L.rm), list('mv', '→ 바꾼 것', L.mv), list('add', '+ 새로', L.add), list('', '유지', L.keep),
+          cur.final ? h('table', null,
+            h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'OC'), h('th', null, 'lite-oc'))),
+            h('tbody', null, [
+              ['실행 단위', '컨테이너 20개 남짓 + 호스트 서비스', '바이너리 1개'],
+              ['진입', 'OCI 공개 IP · HTTPS · 로그인 게이트 · tailnet · nginx', ':8080 하나, 로그인 없음'],
+              ['화면', '백오피스 SPA · tablet-fe 컨테이너', '둘 다 바이너리에 내장'],
+              ['실시간', 'MQTT 브로커 + WebSocket 중계', 'SSE /api/stream'],
+              ['DB', 'PostgreSQL + goose', 'SQLite 파일 1개, 자동 스키마'],
+              ['파일', 'S3 · MinIO', '내장 에셋 + /uploads'],
+              ['장치 명령', 'SQS FIFO → Hub → 실물 로봇', '인메모리 큐 → 콘솔 시뮬'],
+              ['AI', '제공자 failover + Whisper', '제공자 택 1 (Ollama 면 오프라인)'],
+              ['관측', 'Jaeger · Prometheus · Loki · Grafana …', '없음 (개발자 도구 패널)'],
+              ['초기 데이터', '운영 DB', '빌드 때 뽑아 내장 (seed_version)'],
+            ].map((r) => h('tr', { key: r[0] }, h('th', null, r[0]), h('td', { className: 'oc' }, r[1]), h('td', { className: 'lite' }, r[2]))))) : null,
+          step === 0 ? h('p', { style: { marginTop: 14, color: 'var(--muted)' } }, '"다음 ▶" 또는 "▶ 자동 재생" 으로 OC 가 lite-oc 로 줄어드는 과정을 본다. 회색으로 작아지는 건 뺀 것, 오른쪽 상자로 날아가는 건 바뀐 것.') : null)));
+  }
+  function App() { return h(ReactFlowProvider, null, h(Inner)); }
+  ReactDOM.createRoot(document.getElementById('app')).render(h(App));
+})();
+</script>
+</body>
+</html>
